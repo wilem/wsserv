@@ -14,7 +14,7 @@ EXEC=wsserv
 idx:
 	cc indexer.c -o idx -levent
 
-all: ${EXEC}
+all: ${EXEC} idx
 
 ${EXEC}: ${OBJS}
 	${CC} ${CFLAGS} ${OBJS} -o $@ ${LDFLAGS} -levent
@@ -25,7 +25,7 @@ ${EXEC}: ${OBJS}
 	${CC} -c ${CFLAGS} $< -o $@
 
 clean:
-	@rm -f *.o a.out
+	@rm -f *.o a.out ${EXEC} idx
 
 distclean: clean
 	rm -f *~

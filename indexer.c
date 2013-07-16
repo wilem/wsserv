@@ -51,8 +51,9 @@ fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
 	}
 
 	mode = sb.st_mode & S_IFMT;
-	if (mode == S_IFREG || mode == S_IFREG)
-		;
+	//XXX exclude other types.
+	if (mode == S_IFREG || mode == S_IFDIR)
+		printf("mode: %lu\n", mode);
 	else
 		return -2;
 
@@ -76,8 +77,6 @@ fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
 	ri = rindex(c_time, '\n');
 	*ri = 0;
 	
-
-fprintf(stderr, "[fmt]\n%s\n", file_entry_fmt);
 	// fill buffer
 	evbuffer_add_printf(evb_list, file_entry_fmt,
 		cwd, path,
@@ -112,6 +111,8 @@ fprintf(stderr, "[%d] %s()\n", __LINE__, __func__);
 	/////////////////////  ALLOC MEM
 	evb_list = evbuffer_new();
 
+	evbuffer_add_printf(evb_list, "[\n");
+
 	int ret;
 	// fill buffer
 	while ((de = readdir(d)) != NULL) {
@@ -122,8 +123,9 @@ fprintf(stderr, "[%d] %s()\n", __LINE__, __func__);
 		}
 		evbuffer_add_printf(evb_list, ",\n");
 	}
-
 	closedir(d);
+
+	evbuffer_add_printf(evb_list, "]\n");
 
 	// dump file list
 	printf("buf: \n%s", evb_list->buffer);

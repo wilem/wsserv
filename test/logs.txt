@@ -1,0 +1,30 @@
+william@ubuntu-t42:~$ nc -l 9000 
+GET /service HTTP/1.1
+Upgrade: websocket
+Connection: Upgrade
+Host: localhost:9000
+Origin: http://localhost
+Pragma: no-cache
+Cache-Control: no-cache
+Sec-WebSocket-Key: E8qWkgXuCIx5Hj0br3amzw==
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Extensions: x-webkit-deflate-frame
+User-Agent: Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/28.0.1500.52 Chrome/28.0.1500.52 Safari/537.36
+
+william@ubuntu-t42:~/git/public/wsserver$ while true ; do sudo nc -l 80 < client.html ; done
+
+GET / HTTP/1.1
+Host: localhost
+Connection: keep-alive
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+User-Agent: Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/28.0.1500.52 Chrome/28.0.1500.52 Safari/537.36
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8
+
+GET /favicon.ico HTTP/1.1
+Host: localhost
+Connection: keep-alive
+Accept: */*
+User-Agent: Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/28.0.1500.52 Chrome/28.0.1500.52 Safari/537.36
+Accept-Encoding: gzip,deflate,sdch
+Accept-Language: en-US,en;q=0.8

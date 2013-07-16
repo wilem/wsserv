@@ -11,8 +11,8 @@ extern "C" {
 #include <sys/types.h>
 
 // add by wilem
-typedef unsigned int  uint32_t ;
-typedef unsigned char uint8_t ;
+typedef unsigned int uint32_t;
+typedef unsigned char uint8_t;
 
 typedef struct {
     uint32_t state[5];

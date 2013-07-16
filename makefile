@@ -11,10 +11,13 @@ EXEC=wsserv
 
 .PHONY: all, clean, distclean
 
+idx:
+	cc indexer.c -o idx -levent
+
 all: ${EXEC}
 
 ${EXEC}: ${OBJS}
-	${CC} ${CFLAGS} ${OBJS} -o $@ ${LDFLAGS}
+	${CC} ${CFLAGS} ${OBJS} -o $@ ${LDFLAGS} -levent
 	@ls -lh $@
 	@size $@
 

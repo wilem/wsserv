@@ -11,7 +11,7 @@ EXEC=wsserv
 
 .PHONY: all, clean, distclean
 
-idx:
+idx: indexer.c
 	cc indexer.c -o idx -levent
 
 all: ${EXEC} idx

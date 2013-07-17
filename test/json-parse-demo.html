@@ -1,4 +1,4 @@
-<html>
+<!doctype html>
   <head>
     <style>
     p{background-color:silver;}
@@ -8,7 +8,9 @@
       background-color:azure;rules:all;margin:0 auto;
     }
     table td, table th {border: 1px solid black;padding:6px;}
-    table th {background-color:#E0E0F8}
+    table tr {background-color:azure;}
+    table th {background-color:#E0E0F8;}
+    table caption {margin:8px;}
     </style>
     <title>JSON DEMO PAGE</title>
     <script type="text/javascript" src="jquery-2.0.3.min.js"></script>
@@ -30,7 +32,7 @@
       { "firstName": "Sergei", "lastName": "Rachmaninoff", "instrument": "piano" }
     ]
   }
-  people.musicians[1].lastName = "Bach";
+  people.musicians[1].lastName = "Liszt";
   var newStr = JSON.stringify(people);
   //alert(newStr);
   $(function() {
@@ -39,8 +41,20 @@
     $('#content').text('content shows here.');
     // to add objects to div tag.
     $.each(people,function(pros, pers) {
-      $('#list').append("<h2>" + pros + "</h2><hr />");
+      $('#list').append('<hr />');
       var tab = $('<table>');
+      var cap = $('<caption>');
+      cap.append('<h3>'+pros+'</h3>');
+      tab.append(cap);
+      cap.dblclick(function(){
+      tab.find('tr').each(function(i,e) {
+        if (i % 2 == 0 && i != 0) {
+          $(e).css('background-color', 'yellow');
+          $(e).toggle();
+          console.log("toggle: "+$(e).text());//no space
+        }
+      });
+      });
       $.each(pers, function(i, per) {
         var kr = $('<tr class="title">');
         var vr = $('<tr>');
@@ -58,8 +72,7 @@
       tab.appendTo('#list');
       tab.find('tr').each(function(i,e) {
         if (i % 2 == 0 && i != 0) {
-          $(e).css('background-color', 'red');
-          $(e).hide();
+           $(e).hide();
           console.log("hide: "+$(e).text());//no space
         }
       });

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <string.h>
 #include <strings.h>
 
 #include <event.h>
@@ -13,18 +14,21 @@
 // file_type, file_name, file_size, file_mtime, file_atime
 // TODO: return file list as JSON string.
 // // file entry
-// {
-// 	"current_dir" : "/home/william/k",
+// "current_dir" : "/home/william/k",
+// [{
 //	"file_name" : ".",
 //	"file_type" : "DIR",
 //	"file_size" : 18890,
 //	"file_mtime" : "2013-7-16 16:09",
 //	"file_atime" : "2013-7-16 16:09",
-// }
+// },
+// {...
+//  ...
+//  ...},
+// ]
 //char *file_entry_fmt =
 #define file_entry_fmt \
 	"{\n" \
-	"\t\"current_dir\" : \"%s\",\n" \
 	"\t\"file_name\"   : \"%s\",\n" \
 	"\t\"file_type\"   : %lu,   \n" \
 	"\t\"file_size\"   : %lu,   \n" \
@@ -37,21 +41,25 @@ struct evbuffer *evb_list = NULL;
 
 // fill file info into evb_list
 static int
-stat_file(const char *path, const char *cwd)
+stat_file(const char *cwd, const char *path)
 {
 fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
-	char *name, *m_time, *a_time, *c_time, *ri;
+	char pathname[512], *name, *m_time, *a_time, *c_time, *ri;
 	int type;
 	ulong size, mode;
 
 	struct stat sb;
-	if (stat(path, &sb) == -1) {
+	// concate cwd and path
+	snprintf(pathname, sizeof pathname, "%s/%s", cwd, path);
+	if (stat(pathname, &sb) == -1) {
 		perror("stat");
+fprintf(stderr, "[%d] -%s() path=\"%s\"\n", __LINE__, __func__, path);
 		return -1;
 	}
 
 	mode = sb.st_mode & S_IFMT;
 	//XXX exclude other types.
+	//TODO say symbolinks, though it's also dir
 	if (mode == S_IFREG || mode == S_IFDIR)
 		printf("mode: %lu\n", mode);
 	else
@@ -79,8 +87,7 @@ fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
 	
 	// fill buffer
 	evbuffer_add_printf(evb_list, file_entry_fmt,
-		cwd, path,
-		mode, size,
+		path, mode, size,
 		m_time, a_time, c_time);
 
 	////////////////// FREE MEM
@@ -100,32 +107,31 @@ list_dir(const char *path)
 fprintf(stderr, "[%d] %s()\n", __LINE__, __func__);
 	DIR *d;
 	struct dirent *de;
-	char cwd[512];
 
 	d = opendir(path);
 	if (d == NULL)
 		return -1;
 
-	getcwd(cwd, sizeof cwd);
-
 	/////////////////////  ALLOC MEM
 	evb_list = evbuffer_new();
 
-	evbuffer_add_printf(evb_list, "[\n");
+	evbuffer_add_printf(evb_list,
+		"{\n\"current_dir\" : \"%s\",\n[\n", path);
 
 	int ret;
 	// fill buffer
 	while ((de = readdir(d)) != NULL) {
-		ret = stat_file(de->d_name, cwd);
+		ret = stat_file(path, de->d_name);
 		if (ret) {
-			fprintf(stderr, "stat file error.\n");
+			fprintf(stderr, "stat file \"%s\" error[%d].\n",
+				de->d_name, ret);
 			continue;
 		}
 		evbuffer_add_printf(evb_list, ",\n");
 	}
 	closedir(d);
 
-	evbuffer_add_printf(evb_list, "]\n");
+	evbuffer_add_printf(evb_list, "]\n}\n");
 
 	// dump file list
 	printf("buf: \n%s", evb_list->buffer);
@@ -210,14 +216,14 @@ stat_file0(const char *path)
 int
 main(int c, char **v)
 {
-#if 0
 	char cwd[512];
-	getcwd(cwd, sizeof cwd);
-	printf("cwd: %s\n", cwd);
-	list_file(".");
-#endif
 
-	list_dir(".");
+	if (c > 1)
+		strncpy(cwd, v[1], sizeof cwd);
+	else
+		getcwd(cwd, sizeof cwd);
+
+	list_dir(cwd);
 
 	return 0;
 }

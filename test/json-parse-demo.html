@@ -1,0 +1,75 @@
+<html>
+  <head>
+    <style>
+    p{background-color:silver;}
+    div{width:800px;text-align:center;margin:0 auto;}
+    table{
+      border:1px;border-style:solid;
+      background-color:azure;rules:all;margin:0 auto;
+    }
+    table td, table th {border: 1px solid black;padding:6px;}
+    table th {background-color:#E0E0F8}
+    </style>
+    <title>JSON DEMO PAGE</title>
+    <script type="text/javascript" src="jquery-2.0.3.min.js"></script>
+  <script>
+  var people =
+  {
+    "programmers": [
+    { "firstName": "Brett", "lastName":"McLaughlin", "email": "brett@newInstance.com" },
+    { "firstName": "Jason", "lastName":"Hunter", "email": "jason@servlets.com" },
+    { "firstName": "Elliotte", "lastName":"Harold", "email": "elharo@macfaq.com" }
+    ],
+    "authors": [
+      { "firstName": "Isaac", "lastName": "Asimov", "genre": "science fiction" },
+      { "firstName": "Tad", "lastName": "Williams", "genre": "fantasy" },
+      { "firstName": "Frank", "lastName": "Peretti", "genre": "christian fiction" }
+    ],
+    "musicians": [
+      { "firstName": "Eric", "lastName": "Clapton", "instrument": "guitar" },
+      { "firstName": "Sergei", "lastName": "Rachmaninoff", "instrument": "piano" }
+    ]
+  }
+  people.musicians[1].lastName = "Bach";
+  var newStr = JSON.stringify(people);
+  //alert(newStr);
+  $(function() {
+    var list = $('#list');
+    list.empty();
+    $('#content').text('content shows here.');
+    // to add objects to div tag.
+    $.each(people,function(pros, pers) {
+      $('#list').append("<h2>" + pros + "</h2><hr />");
+      var tab = $('<table>');
+      $.each(pers, function(i, per) {
+        var kr = $('<tr class="title">');
+        var vr = $('<tr>');
+        var titleSet = false;
+        $.each(per, function(ak, av) {
+          var kh = $('<th>'); //title row
+          kh.append(ak);
+          kh.appendTo(kr);
+          var vd = $('<td>'); //data row
+          vd.append(av);
+          vd.appendTo(vr);
+        });
+        tab.append(kr,vr);
+      });
+      tab.appendTo('#list');
+      tab.find('tr').each(function(i,e) {
+        if (i % 2 == 0 && i != 0) {
+          $(e).css('background-color', 'red');
+          $(e).hide();
+          console.log("hide: "+$(e).text());//no space
+        }
+      });
+    });
+  });
+  </script>
+  </head>
+  <body>
+    Demo for JSON and AJAX.
+    <div id="content">Loading...</div>
+    <div id="list">Loading...</div>
+   </body>
+</html>

@@ -6,15 +6,16 @@ LDFLAGS=
 
 VPATH=
 
-OBJS=sha1.o base64.o wsserv.o
+OBJS=sha1.o base64.o indexer.o wsserv.o
 EXEC=wsserv
 
 .PHONY: all, clean, distclean
 
-idx: indexer.c
-	cc indexer.c -o idx -levent
-
 all: ${EXEC} idx
+
+idx: indexer.c
+	@echo make tools...
+	${CC} indexer.c -DIDX_TOOL -o idx -levent
 
 ${EXEC}: ${OBJS}
 	${CC} ${CFLAGS} ${OBJS} -o $@ ${LDFLAGS} -levent

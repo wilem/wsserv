@@ -1,3 +1,6 @@
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -8,6 +11,7 @@
 
 #include "base64.h"
 #include "sha1.h"
+#include "indexer.h"
 
 static char *magic_key = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
@@ -90,10 +94,33 @@ char *h_cache[] = {"Cache-Control", "max-age=2592000"};
 
 static unsigned long click;
 
+static void file_handler(struct evhttp_request *, void *);
+
+// handle unregistered URIs
+static int
+dispatch_request(struct evhttp_request *req, void *arg)
+{
+	// match file\/.*
+	char file_uri[] = "file/";
+	if (0 == strncmp(req->uri, file_uri, sizeof file_uri)) {
+		file_handler(req, arg);
+		return 0;
+	}
+	// unknown URI, unhandled.
+	return -1;
+}
+
 static void
 gen_handler(struct evhttp_request *req, void *arg)
 {
 	struct evbuffer *html;
+
+	// dispatch URI
+	fprintf(stderr, "> req.uri=\"%s\".\n", req->uri);
+	if (0 != strcmp(req->uri, "/")) {
+		if (dispatch_request(req, arg))
+			return;
+	}
 
 	////////////////////// ALLOC MEM
 	html = evbuffer_new();
@@ -134,19 +161,82 @@ icon_handler(struct evhttp_request *req, void *arg)
 	evbuffer_free(page);
 }
 
-// file lister handler.
-static void
-flst_handler(struct evhttp_request *req, void *arg)
+// generate file index or file itself.
+////////////////// ALLOC MEM
+static struct evbuffer *
+gen_file_data(const char *uri)
 {
+fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, uri);
+	char path[512] = {0}, *pto;
+	struct evbuffer *data;
 
+	// current dir from getcwd,
+	// TODO chdir is not supported.
+	// check uri for path or file name;
+	if (	(pto = strrchr(uri, '/' )) ||
+		(pto = strrchr(uri, '\\'))) {
+		// form a proper path relative to cwd
+		char pat[] = "/file";
+		char *pstr = strstr(uri, pat);
+		if (NULL == pstr)
+			goto file_error;
+		char *pfrom = &pstr[sizeof(pat)];
+		int len = pto - pfrom;
+
+		strncpy(path, pfrom, len);
+fprintf(stderr, "list_dir: %s\n", path);
+		////////////////// ALLOC MEM
+		data = list_dir(path);
+		if (NULL == data)
+			goto file_error;
+	} else { // its not dir/file
+fprintf(stderr, "read_file: %s\n", path);
+		int fd = open(path, O_RDONLY);
+		if (-1 == fd) { //error
+			perror("open");
+file_error:
+			////////////////// ALLOC MEM
+			data = evbuffer_new();
+			evbuffer_add_printf(data,
+				"file: \"%s\" not found.", uri);
+		} else {
+			////////////////// ALLOC MEM
+			data = evbuffer_new();
+			//XXX large file not support.
+			evbuffer_read(data, fd, 4096);
+		}
+	}
+
+fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
+	return data;
+}
+
+// static file handler.
+static void
+file_handler(struct evhttp_request *req, void *arg)
+{
+fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, req->uri);
+
+	struct evbuffer *data, *resp = evbuffer_new();
+	// alloc mem
+	data = gen_file_data(req->uri);
+	evbuffer_add_buffer(resp, data);
+	evhttp_add_header(req->output_headers, h_html[0], h_html[1]);
+	evhttp_add_header(req->output_headers, h_cache[0], h_cache[1]);
+	evhttp_send_reply(req, HTTP_OK, "OK", resp);
+
+	// free mem
+	evbuffer_free(data);
+	evbuffer_free(resp);
+fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, req->uri);
 }
 
 static void
 httpd_url_handler_init(struct evhttp *h)
 {
 	evhttp_set_gencb(h, gen_handler, gen_tpl);
+	evhttp_set_cb(h, "/file", file_handler, NULL);
 	evhttp_set_cb(h, "/favicon.ico", icon_handler, NULL);
-	//TODO add file lister handler.
 }
 
 int

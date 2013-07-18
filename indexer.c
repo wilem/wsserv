@@ -1,14 +1,15 @@
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <dirent.h>
 #include <unistd.h>
+#include <time.h>
+#include <dirent.h>
 #include <string.h>
 #include <strings.h>
-
 #include <event.h>
+
+#include "indexer.h"
 
 // file entry:
 // file_type, file_name, file_size, file_mtime, file_atime
@@ -30,25 +31,33 @@
 #define file_entry_fmt \
 	"{\n" \
 	"\t\"file_name\"   : \"%s\",\n" \
-	"\t\"file_type\"   : %lu,   \n" \
+	"\t\"file_type\"   : \"%s\",\n" \
 	"\t\"file_size\"   : %lu,   \n" \
 	"\t\"file_mtime\"  : \"%s\",\n" \
 	"\t\"file_atime\"  : \"%s\",\n" \
 	"\t\"file_ctime\"  : \"%s\",\n" \
 	"}"
 
-struct evbuffer *evb_list = NULL;
+static char *
+fmode2str(ulong mode)
+{
+	switch (mode) {
+	case S_IFREG: return "REG"; break; // regular file
+	case S_IFDIR: return "DIR"; break; // directory
+	case S_IFLNK: return "LNK"; break; // symlink
+	default:      return NULL;  break; // unknonw?
+	}
+}
 
 // fill file info into evb_list
 static int
-stat_file(const char *cwd, const char *path)
+stat_file(const char *cwd, const char *path, struct evbuffer *list)
 {
 fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
-	char pathname[512], *name, *m_time, *a_time, *c_time, *ri;
-	int type;
+	char pathname[512], *m_time, *a_time, *c_time, *ri, *ftype;
 	ulong size, mode;
-
 	struct stat sb;
+
 	// concate cwd and path
 	snprintf(pathname, sizeof pathname, "%s/%s", cwd, path);
 	if (stat(pathname, &sb) == -1) {
@@ -60,10 +69,13 @@ fprintf(stderr, "[%d] -%s() path=\"%s\"\n", __LINE__, __func__, path);
 	mode = sb.st_mode & S_IFMT;
 	//XXX exclude other types.
 	//TODO say symbolinks, though it's also dir
-	if (mode == S_IFREG || mode == S_IFDIR)
-		printf("mode: %lu\n", mode);
-	else
+	printf("mode: 0x%08lX\n", mode);
+	ftype = fmode2str(mode);
+	if (ftype == NULL) {
+		fprintf(stderr, "unknonw file type.\n");
+fprintf(stderr, "[%d] -%s() pathname=\"%s\"\n", __LINE__, __func__, pathname);
 		return -2;
+	}
 
 	size = sb.st_size;
 	////////////////// ALLOC MEM
@@ -86,8 +98,8 @@ fprintf(stderr, "[%d] -%s() path=\"%s\"\n", __LINE__, __func__, path);
 	*ri = 0;
 	
 	// fill buffer
-	evbuffer_add_printf(evb_list, file_entry_fmt,
-		path, mode, size,
+	evbuffer_add_printf(list, file_entry_fmt,
+		path, ftype, size,
 		m_time, a_time, c_time);
 
 	////////////////// FREE MEM
@@ -101,27 +113,31 @@ fprintf(stderr, "[%d] -%s()\n", __LINE__, __func__);
 	return 0;
 }
 
-int
-list_dir(const char *path)
+struct evbuffer *
+list_dir(const char *dir_path)
 {
-fprintf(stderr, "[%d] %s()\n", __LINE__, __func__);
+fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
 	DIR *d;
 	struct dirent *de;
 
-	d = opendir(path);
-	if (d == NULL)
-		return -1;
+	d = opendir(dir_path);
+	if (d == NULL) {
+		// not directory or not found.
+		perror("opendir");
+fprintf(stderr, "[%d] -%s(): dir_path=\"%s\"\n", __LINE__, __func__, dir_path);
+		return NULL;
+	}
 
 	/////////////////////  ALLOC MEM
-	evb_list = evbuffer_new();
+	struct evbuffer *evb_list = evbuffer_new();
 
 	evbuffer_add_printf(evb_list,
-		"{\n\"current_dir\" : \"%s\",\n[\n", path);
+		"{\n\"current_dir\" : \"%s\",\n[\n", dir_path);
 
 	int ret;
 	// fill buffer
 	while ((de = readdir(d)) != NULL) {
-		ret = stat_file(path, de->d_name);
+		ret = stat_file(dir_path, de->d_name, evb_list);
 		if (ret) {
 			fprintf(stderr, "stat file \"%s\" error[%d].\n",
 				de->d_name, ret);
@@ -130,15 +146,16 @@ fprintf(stderr, "[%d] %s()\n", __LINE__, __func__);
 		evbuffer_add_printf(evb_list, ",\n");
 	}
 	closedir(d);
-
-	evbuffer_add_printf(evb_list, "]\n}\n");
+	//TODO remove trailing ",\n"
+	//evbuffer_drain(evb_list, 2); //remove data from front?
+	evbuffer_add_printf(evb_list, "\n]\n}\n");
 
 	// dump file list
 	printf("buf: \n%s", evb_list->buffer);
-	/////////////////////  FREE MEM
-	evbuffer_free(evb_list);
-
-	return 0;
+	
+fprintf(stderr, "[%d] -%s()\n", __LINE__, __func__);
+	//
+	return evb_list;
 }
 
 int
@@ -213,18 +230,23 @@ stat_file0(const char *path)
 	exit(EXIT_SUCCESS);
 }
 
+#ifdef IDX_TOOL
 int
 main(int c, char **v)
 {
+	struct evbuffer *list;
 	char cwd[512];
 
-	if (c > 1)
+	if (c > 1) {
 		strncpy(cwd, v[1], sizeof cwd);
-	else
+	} else {
 		getcwd(cwd, sizeof cwd);
+	}
 
-	list_dir(cwd);
+	list = list_dir(cwd);
+	free(list);
 
 	return 0;
 }
+#endif
 

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #include <event.h>
 #include <evhttp.h>
@@ -92,6 +93,8 @@ char *h_xml[]  = {"Content-Type", "text/xml; charset=UTF-8"};
 char *h_icon[] = {"Content-Type", "image/x-icon"};
 char *h_cache[] = {"Cache-Control", "max-age=2592000"};
 
+char file_uri[] = "/file";
+
 static unsigned long click;
 
 static void file_handler(struct evhttp_request *, void *);
@@ -100,13 +103,17 @@ static void file_handler(struct evhttp_request *, void *);
 static int
 dispatch_request(struct evhttp_request *req, void *arg)
 {
+fprintf(stderr, "+%s()\n", __func__);
 	// match file\/.*
-	char file_uri[] = "file/";
-	if (0 == strncmp(req->uri, file_uri, sizeof file_uri)) {
+	if (0 == strncmp(req->uri, file_uri, strlen(file_uri))) {
 		file_handler(req, arg);
+fprintf(stderr, "-%s()\n", __func__);
 		return 0;
 	}
+	// TODO other handler.
+
 	// unknown URI, unhandled.
+fprintf(stderr, "-%s()?\n", __func__);
 	return -1;
 }
 
@@ -122,6 +129,7 @@ gen_handler(struct evhttp_request *req, void *arg)
 			return;
 	}
 
+	// index page.
 	////////////////////// ALLOC MEM
 	html = evbuffer_new();
 
@@ -168,46 +176,45 @@ gen_file_data(const char *uri)
 {
 fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, uri);
 	char path[512] = {0}, *pto;
-	struct evbuffer *data;
+	struct evbuffer *data = NULL;
 
 	// current dir from getcwd,
 	// TODO chdir is not supported.
 	// check uri for path or file name;
-	if (	(pto = strrchr(uri, '/' )) ||
-		(pto = strrchr(uri, '\\'))) {
-		// form a proper path relative to cwd
-		char pat[] = "/file";
-		char *pstr = strstr(uri, pat);
-		if (NULL == pstr)
-			goto file_error;
-		char *pfrom = &pstr[sizeof(pat)];
-		int len = pto - pfrom;
-
-		strncpy(path, pfrom, len);
-fprintf(stderr, "list_dir: %s\n", path);
+	// form a proper path relative to cwd
+	char pat[] = "/file";
+	char *pstr = strstr(uri, pat);
+	if (NULL == pstr)
+		goto file_error;
+	pstr += strlen(pat);
+	fprintf(stderr, "path: \"%s\"\n", pstr);
+	strncpy(path, pstr, sizeof(path)); //XXX error
+	if (0 == strlen(path)) // ""
+		path[0] = '.'; // "."
+	fprintf(stderr, "list_dir: %s\n", path);
+	////////////////// ALLOC MEM
+	data = list_dir(path);
+	if (-1 == (int)data)
+		goto file_error;
+	fprintf(stderr, "read_file: %s\n", path);
+	int fd = open(path, O_RDONLY);
+	if (-1 == fd) { //error
+		perror("open");
+	} else {
 		////////////////// ALLOC MEM
-		data = list_dir(path);
-		if (NULL == data)
-			goto file_error;
-	} else { // its not dir/file
-fprintf(stderr, "read_file: %s\n", path);
-		int fd = open(path, O_RDONLY);
-		if (-1 == fd) { //error
-			perror("open");
-file_error:
-			////////////////// ALLOC MEM
-			data = evbuffer_new();
-			evbuffer_add_printf(data,
-				"file: \"%s\" not found.", uri);
-		} else {
-			////////////////// ALLOC MEM
-			data = evbuffer_new();
-			//XXX large file not support.
-			evbuffer_read(data, fd, 4096);
-		}
+		data = evbuffer_new();
+		//XXX large file not support.
+		evbuffer_read(data, fd, 4096);
 	}
 
 fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
+	return data;
+
+file_error:
+	////////////////// ALLOC MEM
+	data = evbuffer_new();
+	evbuffer_add_printf(data,
+			"file: \"%s\" not found.", uri);
 	return data;
 }
 
@@ -259,7 +266,7 @@ main()
 {
 	event_init();
 
-	int ret = httpd_init(80);
+	int ret = httpd_init(8080);
 	if (ret)
 		return ret;
 

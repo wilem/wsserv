@@ -1,0 +1,10 @@
+
+MVC pattern impl.
+
+Model:
+ http://localhost/file/index.json
+View:
+ http://localhost/file/index.html
+Controller:
+ http://localhost/file
+

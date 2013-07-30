@@ -7,6 +7,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <strings.h>
+#include <errno.h>
 #include <event.h>
 
 #include "indexer.h"
@@ -124,8 +125,10 @@ fprintf(stderr, "[%d] +%s()\n", __LINE__, __func__);
 	if (d == NULL) {
 		// not directory or not found.
 		perror("opendir");
+		if (errno == ENOTDIR)
+			return NULL;
 fprintf(stderr, "[%d] -%s(): dir_path=\"%s\"\n", __LINE__, __func__, dir_path);
-		return NULL;
+		return (struct evbuffer *)(-1);
 	}
 
 	/////////////////////  ALLOC MEM

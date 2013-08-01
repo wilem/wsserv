@@ -2,9 +2,11 @@
 MVC pattern impl.
 
 Model:
- http://localhost/file/index.json
+ http://localhost/m/foo
 View:
- http://localhost/file/index.html
+ http://localhost/v/foo
+ |
+ +-> app/view/index.html // static js enabled template file.
 Controller:
- http://localhost/file
+ http://localhost/f/foo
 

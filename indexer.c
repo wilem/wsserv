@@ -31,12 +31,12 @@
 //char *file_entry_fmt =
 #define file_entry_fmt \
 	"{\n" \
-	"\t\"file_name\"   : \"%s\",\n" \
-	"\t\"file_type\"   : \"%s\",\n" \
-	"\t\"file_size\"   : %lu,   \n" \
-	"\t\"file_mtime\"  : \"%s\",\n" \
-	"\t\"file_atime\"  : \"%s\",\n" \
-	"\t\"file_ctime\"  : \"%s\",\n" \
+	"\t\"name\"  : \"%s\",\n" \
+	"\t\"type\"  : \"%s\",\n" \
+	"\t\"size\"  : %lu,   \n" \
+	"\t\"mtime\" : \"%s\",\n" \
+	"\t\"atime\" : \"%s\",\n" \
+	"\t\"ctime\" : \"%s\" \n" \
 	"}"
 
 static char *
@@ -114,6 +114,8 @@ fprintf(stderr, "[%d] -%s()\n", __LINE__, __func__);
 	return 0;
 }
 
+#define EVBUF_END(b) &b->buffer[b->off - 1];
+
 struct evbuffer *
 list_dir(const char *dir_path)
 {
@@ -134,11 +136,17 @@ fprintf(stderr, "[%d] -%s(): dir_path=\"%s\"\n", __LINE__, __func__, dir_path);
 	/////////////////////  ALLOC MEM
 	struct evbuffer *evb_list = evbuffer_new();
 
+	//
+	// form JSON string
+	// trailling comma is not allowed in JSON.
+	//
 	evbuffer_add_printf(evb_list,
-		"{\n\"current_dir\" : \"%s\",\n[\n", dir_path);
+		"{\n"
+		"\"current_dir\" : \"%s\",\n"
+		"\"file_list\" : [\n", dir_path);
 
 	int ret;
-	// fill buffer
+	// fill buffer //telldir rewinddir scandir
 	while ((de = readdir(d)) != NULL) {
 		ret = stat_file(dir_path, de->d_name, evb_list);
 		if (ret) {
@@ -149,8 +157,11 @@ fprintf(stderr, "[%d] -%s(): dir_path=\"%s\"\n", __LINE__, __func__, dir_path);
 		evbuffer_add_printf(evb_list, ",\n");
 	}
 	closedir(d);
+
 	//TODO remove trailing ",\n"
-	//evbuffer_drain(evb_list, 2); //remove data from front?
+	u_char *buf_end = EVBUF_END(evb_list);
+	buf_end[0] = ' '; // del '\n'
+	buf_end[-1] = ' '; // del ','
 	evbuffer_add_printf(evb_list, "\n]\n}\n");
 
 	// dump file list

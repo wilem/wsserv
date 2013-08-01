@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+    p{background-color:silver;}
+    div{width:800px;text-align:center;margin:0 auto;}
+    table{
+      border:1px;border-style:solid;
+      background-color:azure;rules:all;margin:0 auto;
+    }
+    table td, table th {border: 1px solid black;padding:6px;}
+    table tr {background-color:azure;}
+    table th {background-color:#E0E0F8;}
+    table caption {margin:8px;}
+    </style>
+    <meta http-equiv='cache-control' content='no-cache'>
+    <meta http-equiv='expires' content='0'>
+    <meta http-equiv='pragma' content='no-cache'>
+    <title>Index of $path</title>
+    <script type="text/javascript" src="js/jquery-1.10.2.js"></script>
+    <script type="text/javascript">
+      /* debug JSON parsing
+      $.ajax({
+        url: "../model/demo.json",
+        dataType: 'json',
+        success: function(result){
+          alert("token recieved: " + result.current_dir);
+        },
+        error: function(request, textStatus, errorThrown) {
+          alert(textStatus);
+        },
+        complete: function(request, textStatus) { //for additional info
+          alert(request.responseText);
+          alert(textStatus);
+        }
+      });
+      */
+      $.getJSON("../model/demo.json", function(json) {
+        console.log(json);
+        $('#header').text("Index of "+json.current_dir);
+        var tab = $('<table>');
+        var cap = $('<caption>');
+	cap.text("Directory: \""+json.current_dir+"\"");
+        cap.appendTo(tab);
+        var tbb = $('<tbody>'); tbb.appendTo(tab);
+        $.each(json.file_list, function(i, entry) {
+	  console.log("name="+entry.name);
+          addRow(tbb, entry, json.current_dir);
+        });
+        var hr = $('<hr />');
+        $('#content').text(''); //clear
+        $('#content').append(hr);
+        $('#content').append(tab);
+        $('#content').append(hr.clone());
+      });
+      // add row to tbody
+      function addRow(t, e, d) {
+        var r = $('<tr>');
+        var d0 = $('<td>'); d0.appendTo(r);
+        var d1 = $('<td>'); d1.text(e.size);  d1.appendTo(r);
+        var d2 = $('<td>'); d2.text(e.mtime); d2.appendTo(r);
+        var a = $('<a>'); a.text(e.name);
+        if (e.type == "DIR") {
+          a.attr("href", d+"/"+e.name+"/");
+          d1.text("-");
+        } else if (e.type=="REG") {
+          a.attr("href", d+"/"+e.name);
+        } else {
+          a.attr("href", d+"/");
+        }
+        a.appendTo(d0);
+	r.appendTo(t);
+      }
+    </script>
+  </head>
+  <body>
+    <div id="header">Index of $dir</div>
+    <div id="content">File List:</div>
+    <div id="footer">Hayabusa/0.1 HTTP Server @ubuntu </div>
+  </body>
+</html>

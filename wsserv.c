@@ -14,6 +14,8 @@
 #include "sha1.h"
 #include "indexer.h"
 
+#define WS_MAX_FILE_LEN 4096 * 1024
+
 static char *magic_key = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
 // TODO not thread safe
@@ -175,7 +177,7 @@ static struct evbuffer *
 gen_file_data(const char *uri)
 {
 fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, uri);
-	char path[512] = {0}, *pto;
+	char path[512] = {0};
 	struct evbuffer *data = NULL;
 
 	// current dir from getcwd,
@@ -188,15 +190,19 @@ fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, uri);
 		goto file_error;
 	pstr += strlen(pat);
 	fprintf(stderr, "path: \"%s\"\n", pstr);
-	strncpy(path, pstr, sizeof(path)); //XXX error
+	snprintf(path, sizeof(path), "./%s", pstr); //XXX relative path
 	if (0 == strlen(path)) // ""
 		path[0] = '.'; // "."
 	fprintf(stderr, "list_dir: %s\n", path);
 	////////////////// ALLOC MEM
 	data = list_dir(path);
-	if (-1 == (int)data)
+	if (-1 == (int)data) { // not found
 		goto file_error;
-	fprintf(stderr, "read_file: %s\n", path);
+	} else if (NULL != data) { // dir
+		goto file_ok;
+	}
+	// regular file.
+	fprintf(stderr, "read_path: %s\n", path);
 	int fd = open(path, O_RDONLY);
 	if (-1 == fd) { //error
 		perror("open");
@@ -204,9 +210,10 @@ fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, uri);
 		////////////////// ALLOC MEM
 		data = evbuffer_new();
 		//XXX large file not support.
-		evbuffer_read(data, fd, 4096);
+		evbuffer_read(data, fd, WS_MAX_FILE_LEN);
 	}
 
+file_ok:
 fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
 	return data;
 

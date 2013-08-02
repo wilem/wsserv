@@ -1,4 +1,6 @@
 wsserv
 a.out
 *.o
+tags
+idx
 *~

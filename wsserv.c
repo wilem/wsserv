@@ -90,9 +90,11 @@ char *foot_tpl ="<hr /><div id='footer' align='right'>"
 		"<b>Powered by Hayabusa HTTP Server v0.1 2013</b></div>";
 char h_buf[1024];
 
-char *h_html[] = {"Content-Type", "text/html; charset=UTF-8"};
-char *h_xml[]  = {"Content-Type", "text/xml; charset=UTF-8"};
-char *h_icon[] = {"Content-Type", "image/x-icon"};
+char *h_html[]  = {"Content-Type", "text/html; charset=UTF-8"};
+char *h_xml[]   = {"Content-Type", "text/xml; charset=UTF-8"};
+char *h_js[]    = {"Content-Type", "text/javascript; charset=UTF-8"};
+char *h_json[]  = {"Content-Type", "application/json; charset=UTF-8"};
+char *h_icon[]  = {"Content-Type", "image/x-icon"};
 char *h_cache[] = {"Cache-Control", "max-age=2592000"};
 
 char f_prefix[] = "/f"; // file CONTROLLER prefix.
@@ -102,7 +104,8 @@ char v_prefix[] = "/v"; // file info VIEW/template prefix.
 
 static unsigned long click;
 
-static void file_handler(struct evhttp_request *, void *);
+static void ctrler_handler(struct evhttp_request *, void *);
+static void  model_handler(struct evhttp_request *, void *);
 
 // handle prefix URIs
 static int
@@ -111,15 +114,17 @@ dispatch_request(struct evhttp_request *req, void *arg)
 fprintf(stderr, "+%s()\n", __func__);
 	// match /f.*
 	if (0 == strncmp(req->uri, f_prefix, strlen(f_prefix))) {
-		file_handler(req, arg);
-fprintf(stderr, "-%s()\n", __func__);
-		return 0;
-	}
-	// TODO other handler.
-
+		ctrler_handler(req, arg);
+	} else if (0 == strncmp(req->uri, m_prefix, strlen(m_prefix))) {
+		model_handler(req, arg);
+	} else { // TODO other handler.
 	// unknown URI, unhandled.
 fprintf(stderr, "-%s()?\n", __func__);
-	return -1;
+		return -1;
+	}
+
+fprintf(stderr, "-%s()\n", __func__);
+	return 0;
 }
 
 static void
@@ -176,30 +181,37 @@ icon_handler(struct evhttp_request *req, void *arg)
 }
 
 ////////////////// ALLOC MEM
-static struct evbuffer *
-gen_file_data(const char *path)
+// return:
+//  0: ok
+//  1: not found
+// -1: error
+static int
+gen_file_data(const char *path, struct evbuffer **datap)
 {
-	struct evbuffer *data = NULL;
 	int fd = open(path, O_RDONLY);
 	if (-1 == fd) { //error
 		perror("open");
+		return -1;
 	} else {
 		////////////////// ALLOC MEM
-		data = evbuffer_new();
+		*datap = evbuffer_new();
 		//XXX large file not support.
-		evbuffer_read(data, fd, WS_MAX_FILE_LEN);
+		evbuffer_read(*datap, fd, WS_MAX_FILE_LEN);
+		return 0;
 	}
-	return data;
 }
 
 // generate file index or return file itself.
+// return:
+//  1: NOT FOUND.
+//  0: read OK.
+// -1: read ERROR.
 ////////////////// ALLOC MEM
-static struct evbuffer *
-gen_path_data(const char *uri)
+static int
+gen_path_data(const char *uri, struct evbuffer **datap)
 {
 fprintf(stderr, "+%s() path=\"%s\"\n", __func__, uri);
 	char path[512] = {0};
-	struct evbuffer *data = NULL;
 
 	// current dir from getcwd,
 	// TODO chdir is not supported.
@@ -208,64 +220,111 @@ fprintf(stderr, "+%s() path=\"%s\"\n", __func__, uri);
 	snprintf(path, sizeof(path), "./%s", uri); //XXX relative path
 	fprintf(stderr, "list_dir: %s\n", path);
 	////////////////// ALLOC MEM
-	data = list_dir(path); //relpath
-	if (-1 == (int)data) { // not found
-		goto file_error;
-	} else if (NULL != data) { // dir
-		goto file_ok;
+	*datap = list_dir(path);	// relpath
+	if (-1 == (int)(*datap)) {	// not found
+fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
+		return 1;
+	} else if (NULL != *datap) {	// dir ok
+fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
+		return 0;
 	}
+	//else if *datap == NULL: not dir
 	// regular file.
 	fprintf(stderr, "read_file: %s\n", path);
-	data = gen_file_data(path);
-	if (NULL == data)
-		goto file_error;
-
-file_ok:
 fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
-	return data;
-
-file_error:
-	////////////////// ALLOC MEM
-	data = evbuffer_new();
-	evbuffer_add_printf(data,
-			"file: \"%s\" not found.", uri);
-	return data;
+	return gen_file_data(path, datap);
 }
 
-// static file handler: /f.*
 static void
-file_handler(struct evhttp_request *req, void *arg)
+// static file handler: /f.* ;; CONTROLLER for file.
+ctrler_handler(struct evhttp_request *req, void *arg)
 {
 fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, req->uri);
+	struct evbuffer *resp = NULL;
+	char *fpath = req->uri + strlen(f_prefix);
+	int ret, plen = strlen(fpath);
 
-	struct evbuffer *data, *resp = evbuffer_new();
-	// alloc mem
-	const char *fpath = req->uri + strlen(f_prefix);
-fprintf(stderr, "handle fpath=\"%s\"\n", fpath);
-	int plen = strlen(fpath); // root dir
-	if (0 == plen || (1 == plen && '/' == fpath[0])) {
+fprintf(stderr, "fpath=\"%s\"\n", fpath);
+	// "" or "/" are root dir.
+	char end = fpath[plen - 1];
+	if (0 == plen || '/' == end) {
 		//XXX redirect to ./v/index.html
-		data = gen_file_data("./v/index.html");
+		ret = gen_file_data("v/index.html", &resp);
+fprintf(stderr, "index=\"%s\", ret=%d\n", fpath, ret);
 	} else {
-		data = gen_path_data(fpath);
+		ret = gen_path_data(fpath + 1, &resp); // del "/"
 	}
-	evbuffer_add_buffer(resp, data);
+
+	// header
 	evhttp_add_header(req->output_headers, h_html[0], h_html[1]);
 	evhttp_add_header(req->output_headers, h_cache[0], h_cache[1]);
-	evhttp_send_reply(req, HTTP_OK, "OK", resp);
+	// msg body
+	if (0 == ret) {
+		evhttp_send_reply(req, HTTP_OK, "OK", resp);
+	} else if (1 == ret) {
+		////////////////// ALLOC MEM
+		resp = evbuffer_new();
+		evbuffer_add_printf(resp, "<h1>404, Not Found.</h1>");
+		evhttp_send_reply(req, HTTP_NOTFOUND, "NOT FOUND", resp);
+	} else {
+		////////////////// ALLOC MEM
+		resp = evbuffer_new();
+		evbuffer_add_printf(resp, "<h1>400, Bad Request.</h1>");
+		evhttp_send_reply(req, HTTP_BADREQUEST, "BAD REQUEST", resp);
+	}
 
-	// free mem
-	evbuffer_free(data);
+	////////////////// FREE MEM
 	evbuffer_free(resp);
-fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, req->uri);
+fprintf(stderr, "-%s() path=\"%s\"\n", __func__, fpath);
+}
+
+// JSON handler: /m.* ;; MODEL
+static void
+model_handler(struct evhttp_request *req, void *arg)
+{
+fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, req->uri);
+	struct evbuffer *resp = NULL;
+	const char *mpath = req->uri + strlen(m_prefix);
+	int ret, plen = strlen(mpath);
+
+fprintf(stderr, "mpath=\"%s\"\n", mpath);
+	// "" or "/" are root dir.
+	if (0 == plen || (1 == plen && '/' == mpath[0])) { // doc root
+		ret = gen_path_data(".", &resp);
+	} else { // other dir
+		ret = gen_path_data(mpath, &resp);
+	}
+
+	// header
+	evhttp_add_header(req->output_headers, h_json[0], h_json[1]);
+	evhttp_add_header(req->output_headers, h_cache[0], h_cache[1]);
+	// msg body
+	if (0 == ret) {
+		evhttp_send_reply(req, HTTP_OK, "OK", resp);
+	} else if (1 == ret) {
+		////////////////// ALLOC MEM
+		resp = evbuffer_new();
+		evbuffer_add_printf(resp, "<h1>404, Not Found.</h1>");
+		evhttp_send_reply(req, HTTP_NOTFOUND, "NOT FOUND", resp);
+	} else {
+		////////////////// ALLOC MEM
+		resp = evbuffer_new();
+		evbuffer_add_printf(resp, "<h1>400, Bad Request.</h1>");
+		evhttp_send_reply(req, HTTP_BADREQUEST, "BAD REQUEST", resp);
+	}
+
+	////////////////// FREE MEM
+	evbuffer_free(resp);
+fprintf(stderr, "-%s() path=\"%s\"\n", __func__, mpath);
 }
 
 static void
 httpd_url_handler_init(struct evhttp *h)
 {
-	evhttp_set_gencb(h, gen_handler, gen_tpl);
-	evhttp_set_cb(h, "/f", file_handler, NULL);
+	evhttp_set_cb(h, "/f", ctrler_handler, NULL);
+	evhttp_set_cb(h, "/m", model_handler, NULL);
 	evhttp_set_cb(h, "/favicon.ico", icon_handler, NULL);
+	evhttp_set_gencb(h, gen_handler, gen_tpl);
 }
 
 int

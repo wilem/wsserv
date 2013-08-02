@@ -11,7 +11,7 @@ EXEC=wsserv
 
 .PHONY: all, clean, distclean
 
-all: ${EXEC} idx
+all: ${EXEC} idx tags
 
 idx: indexer.c
 	@echo make tools...
@@ -25,9 +25,12 @@ ${EXEC}: ${OBJS}
 %.o: %.c %.h
 	${CC} -c ${CFLAGS} $< -o $@
 
+tags:
+	./ctags_with_deps.sh *.c
+
 clean:
 	@rm -f *.o a.out ${EXEC} idx
 
 distclean: clean
-	rm -f *~
+	rm -f *~ tags
 

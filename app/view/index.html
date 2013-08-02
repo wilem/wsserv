@@ -108,7 +108,7 @@
       // ready?
       $(function() {
         // "/m/LOCATIONs1", "/f/m/demo.json"
-        var uri = window.location.pathname;
+        var uri = normPath(window.location.pathname)+"/";
         document.title = "["+uri+"]";
 	var jp = p2m(uri);
         console.log("JSON Path: "+jp);

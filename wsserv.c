@@ -235,6 +235,36 @@ fprintf(stderr, "-%s() uri=\"%s\"\n", __func__, uri);
 	return gen_file_data(path, datap);
 }
 
+// add trailing '/'
+/*
+HTTP/1.1 200 ok
+Refresh: 0; url=http://www.example.com/
+Content-type: text/html
+Content-length: 78
+ 
+Please follow <a href="http://www.example.com/">this link</a>.
+ */
+static void
+redirect_handler(struct evhttp_request *req, void *arg)
+{
+	struct evbuffer *resp = evbuffer_new();
+	char nuri[512] = {0}, head[512] = {0};
+
+	// body
+	snprintf(nuri, sizeof nuri, "%s/", req->uri);
+	evbuffer_add_printf(resp, "<h1>Redirect to "
+		"<a href=\"%s\">%s</a></h1>", nuri, nuri);
+	snprintf(head, sizeof head, "1; url=%s", nuri);
+	// header
+	evhttp_add_header(req->output_headers, "Refresh", head);
+	evhttp_add_header(req->output_headers, h_html[0], h_html[1]);
+	evhttp_add_header(req->output_headers, h_cache[0], h_cache[1]);
+	// send
+	evhttp_send_reply(req, HTTP_OK, "OK", resp);
+	// cleanup
+	evbuffer_free(resp);
+}
+
 static void
 // static file handler: /f.* ;; CONTROLLER for file.
 ctrler_handler(struct evhttp_request *req, void *arg)
@@ -245,9 +275,14 @@ fprintf(stderr, "+%s() uri=\"%s\"\n", __func__, req->uri);
 	int ret, plen = strlen(fpath);
 
 fprintf(stderr, "fpath=\"%s\"\n", fpath);
-	// "" or "/" are root dir.
+	if (0 == plen) {
+		redirect_handler(req, arg);
+		return;
+	}
+
+	// "/" are root dir.
 	char end = fpath[plen - 1];
-	if (0 == plen || '/' == end) {
+	if ('/' == end) {
 		//XXX redirect to ./v/index.html
 		ret = gen_file_data("v/index.html", &resp);
 fprintf(stderr, "index=\"%s\", ret=%d\n", fpath, ret);

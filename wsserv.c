@@ -18,6 +18,8 @@
 
 static char *magic_key = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
 
+struct evhttp_connection *evconn;
+
 // TODO not thread safe
 // context
 SHA1_CTX sha1_ctx;

@@ -10,3 +10,5 @@ View:
 Controller:
  http://localhost/f/foo
 
+MIME type for JS and other file types.
+
